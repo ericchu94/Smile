@@ -45,20 +45,18 @@ public class Smile : ModuleRules
         PublicLibraryPaths.Add(libPath);
 
         // Add Dependencies
-        var version = "320";
         var dependencies = new[] { "videoio", "core", "face", "imgcodecs", "imgproc" };
-
-        foreach (var dependency in dependencies)
-        {
-            PublicAdditionalLibraries.Add(string.Format("opencv_{0}{1}{2}.lib", dependency, version, debug ? "d" : ""));
-            PublicDelayLoadDLLs.Add(string.Format("opencv_{0}{1}{2}.dll", dependency, version, debug ? "d" : ""));
-        }
-
-        // Copy DLLs
+        var version = "320";
         var binariesPath = Path.Combine(BinariesPath, platform);
         Directory.CreateDirectory(binariesPath);
-        foreach (var dll in PublicDelayLoadDLLs)
+        foreach (var dependency in dependencies)
         {
+            var name = string.Format("opencv_{0}{1}{2}", dependency, version, debug ? "d" : "");
+            var lib = string.Format("{0}.lib", name);
+            var dll = string.Format("{0}.dll", name);
+
+            PublicAdditionalLibraries.Add(lib);
+            PublicDelayLoadDLLs.Add(dll);
             File.Copy(Path.Combine(libPath, dll), Path.Combine(binariesPath, dll), true);
         }
 
