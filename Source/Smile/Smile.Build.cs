@@ -1,4 +1,5 @@
 // Fill out your copyright notice in the Description page of Project Settings.
+using System;
 using System.IO;
 
 using UnrealBuildTool;
@@ -15,53 +16,55 @@ public class Smile : ModuleRules
         get { return Path.GetFullPath(Path.Combine(ModulePath, "../../ThirdParty/")); }
     }
 
+    private string BinariesPath
+    {
+        get { return Path.GetFullPath(Path.Combine(ModulePath, "../../Binaries/")); }
+    }
+
     public bool LoadOpenCV(TargetInfo Target)
     {
-        bool isLibrarySupported = false;
-
-        // Create OpenCV Path 
-        string OpenCVPath = Path.Combine(ThirdPartyPath, "OpenCV");
-
-        // Get Library Path 
-        string LibPath = "";
-        bool isdebug = Target.Configuration == UnrealTargetConfiguration.Debug && BuildConfiguration.bDebugBuildsActuallyUseDebugCRT;
-        if (Target.Platform == UnrealTargetPlatform.Win64)
+        if (Target.Platform != UnrealTargetPlatform.Win64)
         {
-            LibPath = Path.Combine(OpenCVPath, "Libraries", "Win64");
-            isLibrarySupported = true;
-        }
-        else if (Target.Platform == UnrealTargetPlatform.Win32)
-        {
-            LibPath = Path.Combine(OpenCVPath, "Libraries", "Win32");
-            isLibrarySupported = true;
-        }
-        else
-        {
-            string Err = string.Format("{0} dedicated server is made to depend on {1}. We want to avoid this, please correct module dependencies.", Target.Platform.ToString(), this.ToString()); System.Console.WriteLine(Err);
+            Console.WriteLine("{0} dedicated server is made to depend on {1}. We want to avoid this, please correct module dependencies.", Target.Platform, this.ToString());
+            return false;
         }
 
-        if (isLibrarySupported)
+        var platform = Target.Platform.ToString();
+
+        // Paths
+        var openCVPath = Path.Combine(ThirdPartyPath, "OpenCV");
+        var libPath = Path.Combine(openCVPath, "Libraries", platform);
+
+        // Options
+        var debug = Target.Configuration == UnrealTargetConfiguration.Debug && BuildConfiguration.bDebugBuildsActuallyUseDebugCRT;
+
+        //Add Include path
+        PrivateIncludePaths.AddRange(new string[] { Path.Combine(openCVPath, "Includes") });
+
+        // Add Library Path
+        PublicLibraryPaths.Add(libPath);
+
+        // Add Dependencies
+        var version = "320";
+        var dependencies = new[] { "videoio", "core", "face", "imgcodecs", "imgproc" };
+
+        foreach (var dependency in dependencies)
         {
-            //Add Include path 
-            PrivateIncludePaths.AddRange(new string[] { Path.Combine(OpenCVPath, "Includes") });
-
-            // Add Library Path 
-            PublicLibraryPaths.Add(LibPath);
-
-            // Add Dependencies 
-            var version = "320";
-            var dependencies = new[] { "videoio", "core", "face", "imgcodecs", "imgproc", "highgui" };
-
-            foreach (var dependency in dependencies)
-            {
-                PublicAdditionalLibraries.Add(string.Format("opencv_{0}{1}{2}.lib", dependency, version, isdebug ? "d" : ""));
-                PublicDelayLoadDLLs.Add(string.Format("opencv_{0}{1}{2}.dll", dependency, version, isdebug ? "d" : ""));
-            }
+            PublicAdditionalLibraries.Add(string.Format("opencv_{0}{1}{2}.lib", dependency, version, debug ? "d" : ""));
+            PublicDelayLoadDLLs.Add(string.Format("opencv_{0}{1}{2}.dll", dependency, version, debug ? "d" : ""));
         }
 
-        Definitions.Add(string.Format("WITH_OPENCV_BINDING={0}", isLibrarySupported ? 1 : 0));
+        // Copy DLLs
+        var binariesPath = Path.Combine(BinariesPath, platform);
+        Directory.CreateDirectory(binariesPath);
+        foreach (var dll in PublicDelayLoadDLLs)
+        {
+            File.Copy(Path.Combine(libPath, dll), Path.Combine(binariesPath, dll), true);
+        }
 
-        return isLibrarySupported;
+        Definitions.Add("WITH_OPENCV_BINDING=1");
+
+        return true;
     }
 
     public Smile(TargetInfo Target)
